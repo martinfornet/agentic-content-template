@@ -8,55 +8,7 @@ from pathlib import Path
 from app.services.reel_pipeline import digest, file_hash
 
 
-def words(text):
-    text = unicodedata.normalize('NFKD', text.lower()).encode('ascii', 'ignore').decode()
-    return re.findall(r'[a-z0-9]+', text)
-
-
-def align(beats, raw, duration, minimum_segment_duration=.5):
-    if not math.isfinite(duration) or duration <= 0 or not beats:
-        raise ValueError('Durée ou texte vocal invalide.')
-    if any(not words(beat['text']) for beat in beats):
-        raise ValueError('Segment vocal vide.')
-    observed, spans = [], []
-    previous_start = -1.0
-    for segment in raw['transcription']:
-        letters = ''.join(words(segment['text']))
-        if not letters:
-            continue
-        start, end = segment['offsets']['from']/1000, segment['offsets']['to']/1000
-        # Whisper can attach several short words to the same estimated instant.
-        # Accept those estimates; final beat boundaries must still be usable.
-        if not all(math.isfinite(v) for v in (start, end)) or not (0 <= start <= end <= duration + .25) or start < previous_start:
-            raise ValueError('Horodatage de transcription invalide.')
-        previous_start = start
-        for i, letter in enumerate(letters):
-            observed.append(letter)
-            spans.append((start+(end-start)*i/len(letters),start+(end-start)*(i+1)/len(letters)))
-    expected = ''.join(''.join(words(beat['text'])) for beat in beats)
-    matcher = difflib.SequenceMatcher(a=expected, b=''.join(observed), autojunk=False)
-    mapping = {a+i:b+i for a,b,size in matcher.get_matching_blocks() for i in range(size)}
-    coverage = len(mapping)/len(expected)
-    tail = len([i for i in range(max(0,len(expected)-15),len(expected)) if i in mapping])/min(15,len(expected))
-    # Character comparison tolerates ASR splitting names (lieu indiqué / nom indiqué)
-    # without relaxing the completeness threshold. This does not validate pronunciation.
-    if coverage < .90 or matcher.ratio() < .90 or tail < .8:
-        raise ValueError(f'Voix continue incomplète/divergente : correspondance ASR {coverage:.0%}. Revoir la prise, pas de montage silencieux.')
-    boundaries, position = [0.0], 0
-    for beat in beats[:-1]:
-        position += len(''.join(words(beat['text'])))
-        left = max((i for i in mapping if i < position), default=None)
-        right = min((i for i in mapping if i >= position), default=None)
-        if left is None or right is None or position-left > 15 or right-position > 15:
-            raise ValueError('Frontière de sous-titre non alignable.')
-        point = (spans[mapping[left]][1]+spans[mapping[right]][0])/2
-        boundaries.append(round(point*30)/30)
-    boundaries.append(math.ceil(duration*30)/30)
-    if any(b-a < minimum_segment_duration for a,b in zip(boundaries,boundaries[1:])):
-        raise ValueError('Chronologie vocale invalide.')
-    return {'boundaries':boundaries,'coverage':coverage,'match_ratio':matcher.ratio(),
-            'method':'local_whisper_word_timing_character_sequence_alignment',
-            'pronunciation_human_review_required':True,'transcript':''.join(s['text'] for s in raw['transcription'])}
+from creator.timing import words, align
 
 
 def spoken_text(text, aliases):

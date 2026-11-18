@@ -22,35 +22,7 @@ def explicit_caption_timeline(items, beats, duration=None):
     return [dict(start=i['start'], end=i['end'], text=i['text']) for i in items]
 
 
-def subtitle_chunks(beats, max_words=6):
-    if not isinstance(max_words, int) or not 3 <= max_words <= 10:
-        raise ValueError('Les sous-titres doivent regrouper 3 à 10 mots au maximum.')
-    chunks = []
-    for beat in beats:
-        words = beat['text'].split()
-        while words:
-            end = min(len(words), max_words)
-            if len(words) > max_words:
-                strong = [i for i in range(3, end + 1) if re.search(r'[.!?;:…][»”\"]?$', words[i-1])]
-                weak = [i for i in range(3, end + 1) if words[i-1].endswith(',')]
-                if strong or weak:
-                    end = (strong or weak)[-1]
-                elif 0 < len(words) - end < 3:
-                    end = len(words) - 3
-                dangling = {'à', 'a', 'de', 'du', 'des', 'le', 'la', 'les', 'un', 'une', 'et', 'ou', 'pour', 'dans', 'avec', 'derrière', 'se', 'me', 'te'}
-                # Keep adjacent capitalized name parts together, without joining
-                # the end of one sentence to the start of the next.
-                while end > 2 and words[end-1][0].isupper() and words[end][0].isupper() and not re.search(r'[,.!?;:…]$', words[end-1]):
-                    end -= 1
-                while end > 3 and words[end-1].lower() in dangling:
-                    end -= 1
-                # French standalone punctuation belongs to the preceding group;
-                # this extra token adds no spoken word or timing requirement.
-                while end < len(words) and re.fullmatch(r'[:;!?…]+', words[end]):
-                    end += 1
-            chunks.append({'text': ' '.join(words[:end])})
-            words = words[end:]
-    return chunks
+from creator.timing import subtitle_chunks
 
 
 def photo_filter(seconds, policy=None):

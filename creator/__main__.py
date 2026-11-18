@@ -7,6 +7,7 @@ import subprocess
 import sys
 from uuid import uuid4
 
+from .music import previews
 from .proposal import generate
 from .render import probe, render
 from .speech import synthesize
@@ -47,16 +48,32 @@ def run(args):
             synthesize(state["proposal"]["script"], output, args.reference)
             flow.record_voice(args.id, output)
             print(output)
+        elif args.action == "mixes":
+            flow._advance(args.id, "voice_generated", "voice_generated")
+            verify(state["voice"])
+            state["mixes"] = previews(state["voice"], folder)
+            flow._save(state)
+            for name, mix in state["mixes"].items():
+                print(f"{name} · {mix['bpm']} BPM · {mix['path']}")
         elif args.action == "listen-ok":
-            flow.approve_voice(args.id, actor=args.actor)
+            music = state.get("mixes", {}).get(args.music)
+            if args.music and (not music or music["voice_sha256"] != state["voice"]["sha256"]):
+                raise ValueError("Préparez les préécoutes de cette voix avec mixes.")
+            if music:
+                verify(music)
+            flow.approve_voice(args.id, actor=args.actor, music=music)
         elif args.action == "render":
             flow._advance(args.id, "voice_approved", "assembled")
             clips = state["footage"]["files"]
             for item in [*clips, state["voice"]]:
                 verify(item)
             output = folder / "montage.mp4"
-            render([item["path"] for item in clips], state["voice"]["path"], output)
-            flow.record_assembly(args.id, output)
+            music = state["voice"].get("music")
+            if music:
+                verify(music)
+            timeline = render([item["path"] for item in clips], state["voice"]["path"], output,
+                              state["proposal"]["script"], music)
+            flow.record_assembly(args.id, output, timeline=timeline)
             print(output)
         elif args.action == "export-ok":
             flow.approve_export(args.id, actor=args.actor)
@@ -87,9 +104,13 @@ def guided(args):
         return
     step("footage", id=ident, clips=clips, actor=actor)
     step("voice", id=ident, reference=args.reference)
-    if input("Écoute le WAV affiché. Valides-tu cette narration ? [oui/N] ").strip().lower() != "oui":
+    step("mixes", id=ident)
+    choice = input("Écoute les préécoutes et choisis A, B ou Entrée pour la voix seule : ").strip().upper()
+    if choice not in {"A", "B", ""}:
+        raise ValueError("Choix inconnu. Reprends avec listen-ok après écoute.")
+    if input("Écoute le WAV choisi. Valides-tu cette narration ? [oui/N] ").strip().lower() != "oui":
         return
-    step("listen-ok", id=ident, actor=actor)
+    step("listen-ok", id=ident, actor=actor, music=choice)
     step("render", id=ident)
     if input("Regarde le MP4 affiché. Valides-tu l’export ? [oui/N] ").strip().lower() == "oui":
         step("export-ok", id=ident, actor=actor)
@@ -106,9 +127,11 @@ def main():
     guide.add_argument("direction", nargs="?", default="Un geste simple du quotidien")
     guide.add_argument("--trend", default="")
     guide.add_argument("--reference")
-    for name in ("show", "footage", "voice", "listen-ok", "render", "export-ok", "retake"):
+    for name in ("show", "footage", "voice", "mixes", "listen-ok", "render", "export-ok", "retake"):
         sub = commands.add_parser(name)
         sub.add_argument("id")
+        if name == "listen-ok":
+            sub.add_argument("--music", choices=["A", "B"])
         if name == "footage":
             sub.add_argument("clips", nargs="+")
         if name == "voice":

@@ -23,19 +23,7 @@ def choose_music(workflow, story, choice):
     return copy.deepcopy(candidate)
 
 
-def snap_music_cuts(shots, pulses, max_shift=.5, min_hold=.65):
-    if not shots:return []
-    if not isinstance(pulses,list) or any(isinstance(t,bool) or not isinstance(t,(int,float)) or not math.isfinite(t) or t<0 for t in pulses):
-        raise ValueError('Pulsations musicales invalides.')
-    result=copy.deepcopy(shots);cuts=[shots[0]['start']]
-    for i,shot in enumerate(shots[1:],1):
-        target=shot['start']; upper=shots[i]['end']-min_hold
-        candidates=[round(t*30)/30 for t in pulses if abs(t-target)<=max_shift and round(t*30)/30>=cuts[-1]+min_hold and round(t*30)/30<=upper]
-        cuts.append(min(candidates,key=lambda t:abs(t-target)) if candidates else target)
-    cuts.append(shots[-1]['end'])
-    if any(b-a<.3-1e-6 for a,b in zip(cuts,cuts[1:])):raise ValueError('Calage musical trop serré.')
-    for i,s in enumerate(result):s.update(start=cuts[i],end=cuts[i+1])
-    return result
+from creator.timing import snap_music_cuts
 
 
 def selected_mix(pipeline, proof, duration):

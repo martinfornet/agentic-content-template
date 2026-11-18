@@ -13,6 +13,7 @@ $run_dir/orange.mp4
 $run_dir/blue.mp4
 
 oui
+A
 oui
 non
 ANSWERS
@@ -25,6 +26,11 @@ import sys
 project_file, = (Path(sys.argv[1]) / "projects").glob("*.json")
 project = json.loads(project_file.read_text())
 assert project["stage"] == "assembled"
+timeline = project["assembly"]["timeline"]
+assert " ".join(c["text"] for c in timeline["captions"]) == project["proposal"]["script"]
+assert len(timeline["shots"]) == 2
+assert timeline["music"]["bpm"] == 90
+assert timeline["music"]["voice_sha256"] == project["voice"]["sha256"]
 output = project["assembly"]["path"]
 streams = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-show_streams",
                                              "-of", "json", output]))["streams"]

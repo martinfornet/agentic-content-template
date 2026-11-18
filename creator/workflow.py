@@ -101,22 +101,23 @@ class CreatorWorkflow:
         self._event(project, "voice_generated", "system", {"engine": engine, "sha256": project["voice"]["sha256"]})
         return self._save(project)
 
-    def approve_voice(self, project_id: str, *, actor: str) -> dict:
+    def approve_voice(self, project_id: str, *, actor: str, music=None) -> dict:
         project = self._advance(project_id, "voice_generated", "voice_approved")
         voice = project["voice"]
         if _hash_file(voice["path"]) != voice["sha256"]:
             raise ValueError("L’audio a changé depuis sa génération : le faire écouter à nouveau.")
+        voice["music"] = music
         voice["approved_by"] = actor.strip()
         voice["approved_at"] = datetime.now(timezone.utc).isoformat()
         self._event(project, "voice_approved", actor, {"sha256": voice["sha256"]})
         return self._save(project)
 
-    def record_assembly(self, project_id: str, video_file: Union[str, Path]) -> dict:
+    def record_assembly(self, project_id: str, video_file: Union[str, Path], *, timeline=None) -> dict:
         project = self._advance(project_id, "voice_approved", "assembled")
         video = Path(video_file).resolve()
         if not video.is_file():
             raise ValueError(f"Vidéo assemblée introuvable : {video}")
-        project["assembly"] = {"path": str(video), "sha256": _hash_file(video),
+        project["assembly"] = {"timeline": timeline, "path": str(video), "sha256": _hash_file(video),
                                "footage_hashes": [item["sha256"] for item in project["footage"]["files"]],
                                "voice_sha256": project["voice"]["sha256"]}
         self._event(project, "assembly_recorded", "system", {"sha256": project["assembly"]["sha256"]})
