@@ -22,7 +22,8 @@ def verify(record):
 def run(args):
     flow = CreatorWorkflow(args.root)
     if args.action == "idea":
-        proposal = generate(args.direction, args.trend)
+        proposal = generate(args.direction, args.trend, context=getattr(args, "context", ""),
+                            recent_ideas=getattr(args, "recent_ideas", ()))
         result = flow.create_proposal(**proposal, trend_notes=args.trend)
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return result

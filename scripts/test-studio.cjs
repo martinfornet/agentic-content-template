@@ -31,7 +31,15 @@ const assert = require('node:assert/strict');
       return await r.json();
     }
     await page.goto(target);
-    await page.getByLabel('Direction créative').fill('Deux plans de couleur, orange puis bleu. Propose une courte narration française très simple.');
+    await page.waitForSelector("#context-file", {state:"attached"});
+    const edit=page.getByText("Mon contexte · Modifier");
+    if (await edit.isVisible()) await edit.click();
+    await page.getByLabel('Importer une présentation').setInputFiles({
+      name:'presentation.md', mimeType:'text/markdown', buffer:Buffer.from('Atelier de couleurs, deux plans orange puis bleu.')
+    });
+    await page.waitForFunction(()=>document.querySelector("#context-text")?.value.includes("Atelier de couleurs"));
+    await click('Enregistrer mon contexte');
+    await page.getByLabel('As-tu remarqué une tendance').fill('Deux aplats successifs et une narration très simple.');
     const project = await click('Générer le brief');
     await page.getByLabel('Ajouter des vidéos').setInputFiles(clips);
     await page.getByLabel('Nom pour les validations').fill('test-technique');

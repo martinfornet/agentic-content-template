@@ -3,6 +3,7 @@ const $ = s => document.querySelector(s);
 const html = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const labels = ["Brief","Tournage","Voix & musique","Montage","Export"];
 const stages = {proposed:1,footage_approved:2,voice_generated:2,voice_approved:3,assembled:4,export_approved:4};
+let context = "";
 let rows = [], project, takes = [], urls = [], busy = false;
 const panel = (title, content) => '<section class="panel"><h2>'+title+'</h2>'+content+'</section>';
 const button = (label, action) => '<button class="primary" data-action="'+action+'">'+label+'</button>';
@@ -32,7 +33,16 @@ function paint() {
   $("#title").textContent=project?.proposal.idea || "Nouveau projet";
   const space=$("#workspace");
   if (!project) {
-    space.innerHTML=panel("Préparer le tournage",'<label>Direction créative<textarea id="direction" placeholder="Un geste de cuisine à filmer chez soi"></textarea></label><label>Tendance à explorer (facultatif)<input id="trend"></label>'+button("Générer le brief","idea"));
+    const editor='<label>Importer une présentation (.txt ou .md)<input id="context-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>'+
+      '<label>Présentation de ton entreprise<textarea id="context-text" maxlength="24000" placeholder="Tu peux aussi coller le texte de ton site ou de ta présentation.">'+html(context)+'</textarea></label>'+
+      '<p class="muted">Ce contexte est conservé sur cet ordinateur et transmis au modèle quand tu demandes une idée.</p>'+button("Enregistrer mon contexte","context");
+    if (!context) {
+      space.innerHTML=panel("Importer mon contexte",editor);
+    } else {
+      space.innerHTML='<details class="panel"><summary>Mon contexte · Modifier</summary>'+editor+'</details>'+
+        panel("Ton prochain Reel",'<label>As-tu remarqué une tendance dont tu aimerais me parler ?<textarea id="trend" maxlength="3000" placeholder="Un format qui revient, une question de tes clients…"></textarea></label>'+
+        '<p class="muted">Tu peux passer cette question. Chaque clic propose une idée avec deux plans à filmer et le texte de la voix.</p>'+button("Générer le brief","idea"));
+    }
     return;
   }
   const p=project, step=stages[p.stage], brief='<h3>Plans à filmer</h3><p>'+html(p.proposal.shooting_brief)+'</p><h3>Narration</h3><p>'+html(p.proposal.script)+'</p>';
@@ -56,14 +66,20 @@ async function load() {
   const res=await fetch("/api/projects");
   if (!res.ok) throw Error("Impossible de charger les projets.");
   rows=await res.json();
+  const profile=await fetch("/api/context");
+  if (!profile.ok) throw Error("Impossible de charger le contexte.");
+  context=(await profile.json()).text;
 }
 const waiting={idea:"Le modèle prépare le brief…",voice:"Chatterbox génère la narration…",mixes:"Création des deux préécoutes…",render:"Alignement des sous-titres et montage du MP4…"};
 async function action(key) {
   if (busy) return;
   const data=new FormData(), actor=$("#actor")?.value.trim();
-  if (key==="idea") {
-    const direction=$("#direction").value.trim() || "Un geste simple du quotidien";
-    data.set("direction",direction); data.set("trend",$("#trend").value.trim());
+  if (key==="context") {
+    const value=$("#context-text").value.trim();
+    if (!value) {message("Choisis un fichier ou colle ta présentation.",true); return;}
+    data.set("text",value);
+  } else if (key==="idea") {
+    data.set("trend",$("#trend").value.trim());
   } else {
     data.set("version",project.updated_at);
     if (["footage","listen-ok","export-ok","retake"].includes(key) && !actor) {
@@ -79,10 +95,11 @@ async function action(key) {
   }
   busy=true; $("#workspace").inert=true; $("aside").inert=true; message(waiting[key]||"Enregistrement…");
   try {
-    const url=key==="idea"?"/api/projects":"/api/projects/"+project.id+"/"+key;
+    const url=key==="context"?"/api/context":key==="idea"?"/api/projects":"/api/projects/"+project.id+"/"+key;
     const res=await fetch(url,{method:"POST",headers:{"X-Creator-Studio":"1"},body:data});
     const result=await res.json();
     if (!res.ok) throw Error(typeof result.detail==="string"?result.detail:"Cette étape a échoué. Vérifie les fichiers et réessaie.");
+    if (key==="context") {context=result.text; paint(); message("Contexte enregistré."); return;}
     await load(); project=rows.find(p=>p.id===result.id); location.hash=result.id;
     clearUrls(); takes=[]; paint(); message("");
   } catch(e) {message(e.message,true);}
@@ -99,3 +116,14 @@ document.addEventListener("click",e=>{
 document.addEventListener("change",e=>{if(e.target.id==="clips"){takes.push(...e.target.files); e.target.value=""; shots();}});
 window.addEventListener("hashchange",()=>{if(!busy && location.hash.slice(1)!==(project?.id||"new"))select(location.hash.slice(1));});
 load().then(()=>select(location.hash.slice(1))).catch(e=>message(e.message,true));
+
+document.addEventListener("change", async e=>{
+  if(e.target.id!=="context-file" || !e.target.files.length) return;
+  const file=e.target.files[0];
+  try {
+    if(file.size>96000 || !/\.(md|txt)$/i.test(file.name)) throw Error("Choisis un fichier texte ou Markdown de 24 000 caractères maximum.");
+    const value=await file.text();
+    if(value.length>24000 || !value.trim() || value.includes("\u0000")) throw Error("Le document doit contenir du texte, dans la limite de 24 000 caractères.");
+    $("#context-text").value=value; message("Présentation importée. Tu peux la relire avant de l’enregistrer.");
+  } catch(err) {message(err.message,true);}
+});

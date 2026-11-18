@@ -16,7 +16,7 @@ Depuis le clone, lance `./setup.sh`, puis `source .venv/bin/activate`. Le premie
 
 ## Ouvrir le studio web
 
-Après installation et activation, lance `python -m creator studio` puis ouvre **http://127.0.0.1:8765** dans ton navigateur. Garde le terminal ouvert pendant la production. Une fois dans le studio, crée le brief, ajoute et visionne les prises dans l’ordre souhaité, puis valide-les. Génère la voix et, si tu veux de la musique, prépare les deux préécoutes. Écoute la bande-son choisie, valide-la, lance le montage et regarde la vidéo avant de valider et télécharger le MP4.
+Après installation et activation, lance `python -m creator studio` puis ouvre **http://127.0.0.1:8765** dans ton navigateur. Garde le terminal ouvert pendant la production. Au premier lancement, importe ta présentation (.txt ou .md) ou colle le texte de ton site. Enregistre le contexte une fois. Pour chaque nouveau Reel, le studio te demande si une tendance t’intéresse. Tu peux répondre ou passer directement à « Générer le brief ». Une proposition est générée à chaque demande et tient compte des douze idées les plus récentes. Tu choisis la fréquence. Ensuite, ajoute et visionne les prises dans l’ordre souhaité, puis valide-les. Génère la voix et, si tu veux de la musique, prépare les deux préécoutes. Écoute la bande-son choisie, valide-la, lance le montage et regarde la vidéo avant de valider et télécharger le MP4.
 
 Les projets se retrouvent dans la navigation à gauche après redémarrage depuis le même répertoire. Le studio écoute uniquement sur ton ordinateur. Pour un autre port, utilise `python -m creator studio --port 8766`.
 

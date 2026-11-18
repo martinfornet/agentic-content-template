@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from threading import Lock
+from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -63,9 +64,35 @@ def create_app(root):
         rows = [view(state(p.stem)) for p in flow.root.glob("*.json")]
         return sorted(rows, key=lambda row: row["updated_at"], reverse=True)
 
+    profile = flow.root / "profil" / "contexte.txt"
+
+    @app.get("/api/context")
+    def current_context():
+        return {"text": profile.read_text(encoding="utf-8") if profile.exists() else ""}
+
+    @app.post("/api/context")
+    def save_context(text: str = Form(...)):
+        value = text.strip()
+        if not value or len(value) > 24000:
+            raise ValueError("Le contexte doit contenir entre 1 et 24 000 caractères.")
+        with lock:
+            profile.parent.mkdir(exist_ok=True)
+            temp = profile.with_name(f"{uuid4().hex}.tmp")
+            temp.write_text(value, encoding="utf-8")
+            temp.replace(profile)
+        return {"text": value}
+
     @app.post("/api/projects")
-    def new(direction: str = Form(...), trend: str = Form("")):
-        p = run(Namespace(action="idea", root=root, direction=direction.strip(), trend=trend))
+    def new(direction: str = Form(""), trend: str = Form("")):
+        context = current_context()["text"]
+        if not direction.strip() and not context:
+            raise ValueError("Importe d’abord la présentation de ton entreprise.")
+        if len(trend) > 3000:
+            raise ValueError("Décris la tendance en 3 000 caractères maximum.")
+        prior = sorted(flow.root.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:12]
+        ideas = [state(f.stem)["proposal"]["idea"] for f in prior]
+        p = run(Namespace(action="idea", root=root, direction=direction.strip(), trend=trend,
+                          context=context, recent_ideas=ideas))
         return view(p)
 
     def upload(folder, item):
