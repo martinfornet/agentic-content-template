@@ -1,0 +1,22 @@
+# Private configuration and production data
+.env
+.env.*
+!.env.example
+brands/*
+!brands/example/
+!brands/example/README.md
+output/
+data/
+checkpoints/
+models/
+references/
+*.wav
+*.mp3
+*.mp4
+*.mov
+*.safetensors
+*.pt
+*.pth
+__pycache__/
+*.py[cod]
+.DS_Store
