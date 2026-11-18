@@ -46,3 +46,5 @@ Pour reprendre, utilise `python -m creator show "$ID"`. Pour refaire les prises 
 ## Vérifications
 
 `python -m unittest discover -s tests -v` exerce les états de validation avec des fichiers de test. Les sorties, poids et enregistrements personnels restent hors du dépôt. Le parcours ci-dessus utilise le paquet Python `creator`. Le dossier `app` conserve des composants historiques.
+
+Pour reproduire le test complet après installation, exécute `./scripts/test-mp4.sh`. Il appelle réellement le modèle, fabrique deux prises de couleur, synthétise le texte et décode le MP4. Les décisions du scénario sont enregistrées sous le nom `test-technique`. Le fichier reste disponible pour écoute et visionnage.
