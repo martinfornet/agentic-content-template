@@ -41,3 +41,4 @@ assert abs(float(video["duration"]) - float(audio["duration"])) < 0.1
 subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", output, "-f", "null", "-"], check=True)
 print(output)
 PY
+.venv/bin/python scripts/check-demo.py "$run_dir"/projects/*.json
