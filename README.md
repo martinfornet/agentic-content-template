@@ -14,7 +14,11 @@ codex login
 
 Depuis le clone, lance `./setup.sh`, puis `source .venv/bin/activate`. Le premier appel vocal télécharge les poids publics de Chatterbox depuis Hugging Face. Prévois plusieurs Go disponibles et une connexion pour l’installation et la proposition du modèle. Tu peux aussi définir `CHATTERBOX_CHECKPOINT` avec le chemin d’un checkpoint multilingue v3 complet. La voix incluse suffit.
 
-## Produire une vidéo
+## Lancer le parcours guidé
+
+Après activation, lance simplement `python -m creator start`. La commande affiche les consignes de tournage, demande les chemins des prises dans l’ordre et attend tes validations. Ouvre le WAV et le MP4 aux chemins indiqués avant de répondre.
+
+## Reprendre ou produire étape par étape
 
 ```sh
 python -m creator idea "Un geste simple à filmer dans ma cuisine"

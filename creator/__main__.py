@@ -24,7 +24,7 @@ def run(args):
         proposal = generate(args.direction, args.trend)
         result = flow.create_proposal(**proposal, trend_notes=args.trend)
         print(json.dumps(result, indent=2, ensure_ascii=False))
-        return
+        return result
     state = flow.read(args.id)
     folder = flow.root / args.id
     folder.mkdir(exist_ok=True)
@@ -69,6 +69,32 @@ def run(args):
         print(flow.read(args.id)["stage"])
 
 
+def guided(args):
+    def step(action, **fields):
+        return run(argparse.Namespace(root=args.root, action=action, **fields))
+
+    project = step("idea", direction=args.direction, trend=args.trend)
+    ident = project["id"]
+    print(f"Projet {ident}. Tu peux interrompre avec Ctrl-C et reprendre via les commandes du README.")
+    actor = input("Ton prénom : ").strip()
+    clips = []
+    while True:
+        entry = input("Chemin d’un plan filmé (Entrée pour terminer) : ").strip()
+        if not entry:
+            break
+        clips.append(str(Path(entry).expanduser()))
+    if input("As-tu visionné et validé ces prises ? [oui/N] ").strip().lower() != "oui":
+        return
+    step("footage", id=ident, clips=clips, actor=actor)
+    step("voice", id=ident, reference=args.reference)
+    if input("Écoute le WAV affiché. Valides-tu cette narration ? [oui/N] ").strip().lower() != "oui":
+        return
+    step("listen-ok", id=ident, actor=actor)
+    step("render", id=ident)
+    if input("Regarde le MP4 affiché. Valides-tu l’export ? [oui/N] ").strip().lower() == "oui":
+        step("export-ok", id=ident, actor=actor)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Créer un Reel narré en français.")
     parser.add_argument("--root", default="output/projects")
@@ -76,6 +102,10 @@ def main():
     idea = commands.add_parser("idea", help="Générer une idée, deux plans et une narration")
     idea.add_argument("direction", nargs="?", default="Un geste simple du quotidien")
     idea.add_argument("--trend", default="")
+    guide = commands.add_parser("start", help="Suivre le parcours guidé jusqu’au MP4")
+    guide.add_argument("direction", nargs="?", default="Un geste simple du quotidien")
+    guide.add_argument("--trend", default="")
+    guide.add_argument("--reference")
     for name in ("show", "footage", "voice", "listen-ok", "render", "export-ok", "retake"):
         sub = commands.add_parser(name)
         sub.add_argument("id")
@@ -86,7 +116,11 @@ def main():
         if name in {"footage", "listen-ok", "export-ok", "retake"}:
             sub.add_argument("--actor", required=True)
     try:
-        run(parser.parse_args())
+        args = parser.parse_args()
+        if args.action == "start":
+            guided(args)
+        else:
+            run(args)
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         sys.exit(str(error))
 
