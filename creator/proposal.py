@@ -1,5 +1,7 @@
-"""Generate a structured brief using the creator's authenticated Codex CLI."""
+"""Generate a structured brief using the creator's authenticated model CLI."""
 import json
+import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -7,6 +9,15 @@ import tempfile
 FIELDS = ("idea", "shooting_brief", "script")
 SCHEMA = {"type": "object", "properties": {k: {"type": "string"} for k in FIELDS},
           "required": list(FIELDS), "additionalProperties": False}
+
+
+def provider():
+    preferred = os.getenv("CREATOR_MODEL_CLI")
+    names = [preferred] if preferred else ["claude", "codex"]
+    for name in names:
+        if name in {"claude", "codex"} and shutil.which(name):
+            return name
+    raise ValueError("Installe et connecte Claude Code ou Codex CLI avant de générer un brief.")
 
 
 def generate(direction, trends, *, context="", recent_ideas=()):
@@ -19,6 +30,16 @@ def generate(direction, trends, *, context="", recent_ideas=()):
     )
     with tempfile.TemporaryDirectory() as folder:
         root = Path(folder)
+        if provider() == "claude":
+            result = subprocess.run(
+                ["claude", "-p", "--output-format", "json", "--json-schema", json.dumps(SCHEMA),
+                 "--tools", "", "--strict-mcp-config", "--no-session-persistence"],
+                cwd=root, input=prompt, text=True, stdout=subprocess.PIPE, check=True, timeout=300)
+            envelope = json.loads(result.stdout)
+            value = envelope.get("structured_output")
+            if envelope.get("is_error") or not isinstance(value, dict):
+                raise ValueError("Claude Code n’a pas renvoyé de brief structuré. Vérifie sa connexion.")
+            return {key: value.get(key) for key in FIELDS}
         schema = root / "schema.json"
         schema.write_text(json.dumps(SCHEMA))
         output = root / "proposal.json"

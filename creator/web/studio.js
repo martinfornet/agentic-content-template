@@ -4,6 +4,7 @@ const html = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&l
 const labels = ["Brief","Tournage","Voix & musique","Montage","Export"];
 const stages = {proposed:1,footage_approved:2,voice_generated:2,voice_approved:3,assembled:4,export_approved:4};
 let context = "";
+let morning = {};
 let rows = [], project, takes = [], urls = [], busy = false;
 const panel = (title, content) => '<section class="panel"><h2>'+title+'</h2>'+content+'</section>';
 const button = (label, action) => '<button class="primary" data-action="'+action+'">'+label+'</button>';
@@ -28,8 +29,11 @@ function shots() {
       '<button data-remove="'+i+'">Retirer</button></figure>';
   }).join("");
 }
-function paint() {
+function paintProjects() {
   $("#projects").innerHTML=rows.map(p=>'<button data-id="'+html(p.id)+'" class="'+(p.id===project?.id?'active':'')+'">'+html(p.proposal.idea)+'</button>').join("");
+}
+function paint() {
+  paintProjects();
   $("#title").textContent=project?.proposal.idea || "Nouveau projet";
   const space=$("#workspace");
   if (!project) {
@@ -42,6 +46,11 @@ function paint() {
       space.innerHTML='<details class="panel"><summary>Mon contexte · Modifier</summary>'+editor+'</details>'+
         panel("Ton prochain Reel",'<label>As-tu remarqué une tendance dont tu aimerais me parler ?<textarea id="trend" maxlength="3000" placeholder="Un format qui revient, une question de tes clients…"></textarea></label>'+
         '<p class="muted">Tu peux passer cette question. Chaque clic propose une idée avec deux plans à filmer et le texte de la voix.</p>'+button("Générer le brief","idea"));
+      if (morning.supported) {
+        const info = morning.checked ? "<p>Dernier passage · "+html(morning.checked)+" · "+html(morning.message)+"</p>" : "";
+        space.innerHTML += panel("Brief du matin", "<p>À 8 h sur cet ordinateur, une idée si moins de trois briefs attendent leurs prises. Le studio peut être fermé.</p>"+info+
+          button(morning.enabled ? "Désactiver le brief du matin" : "Activer le brief du matin", "morning"));
+      }
     }
     return;
   }
@@ -69,12 +78,17 @@ async function load() {
   const profile=await fetch("/api/context");
   if (!profile.ok) throw Error("Impossible de charger le contexte.");
   context=(await profile.json()).text;
+  const schedule=await fetch("/api/morning");
+  if (!schedule.ok) throw Error("Impossible de charger la programmation.");
+  morning=await schedule.json();
 }
 const waiting={idea:"Le modèle prépare le brief…",voice:"Chatterbox génère la narration…",mixes:"Création des deux préécoutes…",render:"Alignement des sous-titres et montage du MP4…"};
 async function action(key) {
   if (busy) return;
   const data=new FormData(), actor=$("#actor")?.value.trim();
-  if (key==="context") {
+  if (key==="morning") {
+    data.set("enabled",String(!morning.enabled));
+  } else if (key==="context") {
     const value=$("#context-text").value.trim();
     if (!value) {message("Choisis un fichier ou colle ta présentation.",true); return;}
     data.set("text",value);
@@ -95,10 +109,11 @@ async function action(key) {
   }
   busy=true; $("#workspace").inert=true; $("aside").inert=true; message(waiting[key]||"Enregistrement…");
   try {
-    const url=key==="context"?"/api/context":key==="idea"?"/api/projects":"/api/projects/"+project.id+"/"+key;
+    const url=key==="morning"?"/api/morning":key==="context"?"/api/context":key==="idea"?"/api/projects":"/api/projects/"+project.id+"/"+key;
     const res=await fetch(url,{method:"POST",headers:{"X-Creator-Studio":"1"},body:data});
     const result=await res.json();
     if (!res.ok) throw Error(typeof result.detail==="string"?result.detail:"Cette étape a échoué. Vérifie les fichiers et réessaie.");
+    if (key==="morning") {morning=result; paint(); message(result.enabled?"Brief du matin activé.":"Programmation désactivée."); return;}
     if (key==="context") {context=result.text; paint(); message("Contexte enregistré."); return;}
     await load(); project=rows.find(p=>p.id===result.id); location.hash=result.id;
     clearUrls(); takes=[]; paint(); message("");
@@ -127,3 +142,17 @@ document.addEventListener("change", async e=>{
     $("#context-text").value=value; message("Présentation importée. Tu peux la relire avant de l’enregistrer.");
   } catch(err) {message(err.message,true);}
 });
+
+// Update the project list when a morning brief arrives, preserving any unfinished form.
+async function refreshProjectList() {
+  if (busy || document.hidden) return;
+  try {
+    const response = await fetch("/api/projects");
+    if (response.ok && !busy) {
+      const updated = await response.json();
+      if (!busy) { rows = updated; paintProjects(); }
+    }
+  } catch { /* The next refresh will retry when the local studio is available. */ }
+}
+window.addEventListener("focus", refreshProjectList);
+setInterval(refreshProjectList, 60000);

@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.staticfiles import StaticFiles
 
 from .workflow import CreatorWorkflow
+from .morning import Morning
 
 
 def create_app(root):
@@ -66,6 +67,16 @@ def create_app(root):
 
     profile = flow.root / "profil" / "contexte.txt"
 
+    morning = Morning(root)
+
+    @app.get("/api/morning")
+    def morning_state():
+        return morning.status()
+
+    @app.post("/api/morning")
+    def morning_change(enabled: bool = Form(...)):
+        return morning.change(enabled)
+
     @app.get("/api/context")
     def current_context():
         return {"text": profile.read_text(encoding="utf-8") if profile.exists() else ""}
@@ -89,11 +100,12 @@ def create_app(root):
             raise ValueError("Importe d’abord la présentation de ton entreprise.")
         if len(trend) > 3000:
             raise ValueError("Décris la tendance en 3 000 caractères maximum.")
-        prior = sorted(flow.root.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:12]
-        ideas = [state(f.stem)["proposal"]["idea"] for f in prior]
-        p = run(Namespace(action="idea", root=root, direction=direction.strip(), trend=trend,
-                          context=context, recent_ideas=ideas))
-        return view(p)
+        with morning.lock():
+            prior = sorted(flow.root.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:12]
+            ideas = [state(f.stem)["proposal"]["idea"] for f in prior]
+            p = run(Namespace(action="idea", root=root, direction=direction.strip(), trend=trend,
+                              context=context, recent_ideas=ideas))
+            return view(p)
 
     def upload(folder, item):
         name = Path(item.filename or "prise").name

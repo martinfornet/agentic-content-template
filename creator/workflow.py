@@ -54,7 +54,7 @@ class CreatorWorkflow:
                                    "at": datetime.now(timezone.utc).isoformat(), **details})
 
     def create_proposal(self, *, idea: str, shooting_brief: str, script: str,
-                        actor: str = "model", trend_notes: str = "") -> dict:
+                        actor: str = "model", trend_notes: str = "", scheduled_day: str = "") -> dict:
         """Store the model's creative proposal; trend notes are optional inspiration only."""
         values = (idea, shooting_brief, script)
         if not all(isinstance(value, str) and value.strip() for value in values):
@@ -65,6 +65,8 @@ class CreatorWorkflow:
                                 "script": script.strip(), "trend_notes": trend_notes.strip()},
                    "footage": None, "voice": None, "assembly": None, "final_review": None,
                    "history": []}
+        if scheduled_day:
+            project["scheduled_day"] = scheduled_day
         self._event(project, "proposal_created", actor, {"trend_notes_present": bool(trend_notes.strip())})
         return self._save(project)
 

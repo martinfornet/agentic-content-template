@@ -1,1 +1,1 @@
-Le parcours exécutable est décrit dans le README. Les anciens composants de recherche sous app/services restent des archives de développement. Le parcours créateur appelle Codex CLI, Chatterbox Multilingual v3 et FFmpeg.
+Le parcours exécutable est décrit dans le README. Les anciens composants de recherche sous app/services restent des archives de développement. Le parcours créateur appelle Claude Code ou Codex CLI, Chatterbox Multilingual v3 et FFmpeg.
