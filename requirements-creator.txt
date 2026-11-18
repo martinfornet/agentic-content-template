@@ -1,1 +1,4 @@
 chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@ab55923c27757c90cfcc407baa57dc25a7d25217
+fastapi==0.163.2
+uvicorn==0.54.0
+python-multipart==0.0.34

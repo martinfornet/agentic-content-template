@@ -14,7 +14,13 @@ codex login
 
 Depuis le clone, lance `./setup.sh`, puis `source .venv/bin/activate`. Le premier appel vocal télécharge les poids publics de Chatterbox depuis Hugging Face. Prévois plusieurs Go disponibles et une connexion pour l’installation et la proposition du modèle. Tu peux aussi définir `CHATTERBOX_CHECKPOINT` avec le chemin d’un checkpoint multilingue v3 complet. La voix incluse suffit. Le premier montage télécharge également ggml-small.bin (488 Mo) pour aligner les sous-titres hors ligne ensuite. Pour réutiliser ce modèle local, définis CREATOR_WHISPER_MODEL. Sous Linux, installe la police DejaVu Sans Bold ou indique un fichier TTF avec CREATOR_FONT.
 
-## Lancer le parcours guidé
+## Ouvrir le studio web
+
+Après installation et activation, lance `python -m creator studio` puis ouvre **http://127.0.0.1:8765** dans ton navigateur. Garde le terminal ouvert pendant la production. Une fois dans le studio, crée le brief, ajoute et visionne les prises dans l’ordre souhaité, puis valide-les. Génère la voix et, si tu veux de la musique, prépare les deux préécoutes. Écoute la bande-son choisie, valide-la, lance le montage et regarde la vidéo avant de valider et télécharger le MP4.
+
+Les projets se retrouvent dans la navigation à gauche après redémarrage depuis le même répertoire. Le studio écoute uniquement sur ton ordinateur. Pour un autre port, utilise `python -m creator studio --port 8766`.
+
+## Lancer le parcours guidé dans le terminal
 
 Après activation, lance simplement `python -m creator start`. La commande affiche les consignes de tournage, demande les chemins des prises dans l’ordre et attend tes validations. Ouvre le WAV et le MP4 aux chemins indiqués avant de répondre.
 
@@ -49,3 +55,5 @@ Pour reprendre, utilise `python -m creator show "$ID"`. Pour refaire les prises 
 `python -m unittest discover -s tests -v` exerce les états de validation avec des fichiers de test. Les sorties, poids et enregistrements personnels restent hors du dépôt. Le parcours ci-dessus utilise le paquet Python `creator`. Le dossier `app` conserve des composants historiques.
 
 Pour reproduire le test complet après installation, exécute `./scripts/test-mp4.sh`. Il appelle réellement le modèle, fabrique deux prises de couleur, synthétise le texte et décode le MP4. Les décisions du scénario sont enregistrées sous le nom `test-technique`. Le fichier reste disponible pour écoute et visionnage.
+
+Le test navigateur `scripts/test-studio.cjs` pilote un projet de démonstration, du brief au téléchargement. Pour le reproduire, démarre le studio avec `python -m creator --root output/test-web studio`, installe `playwright-core` dans un environnement Node de test et lance `node scripts/test-studio.cjs`. La variable `CHROMIUM` peut pointer vers l’exécutable Chrome ou Chromium installé. Le test écrit sa vidéo et sa capture d’écran sous `output/browser-demo-…`.

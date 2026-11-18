@@ -80,7 +80,7 @@ def run(args):
         elif args.action == "retake":
             if state["stage"] == "export_approved":
                 raise ValueError("Export finalisé. Créez un nouveau projet pour cette version.")
-            state.update(stage="proposed", footage=None, voice=None, assembly=None, final_review=None)
+            state.update(stage="proposed", footage=None, voice=None, mixes={}, assembly=None, final_review=None)
             flow._event(state, "retake_requested", args.actor, {})
             flow._save(state)
         print(flow.read(args.id)["stage"])
@@ -120,6 +120,8 @@ def main():
     parser = argparse.ArgumentParser(description="Créer un Reel narré en français.")
     parser.add_argument("--root", default="output/projects")
     commands = parser.add_subparsers(dest="action", required=True)
+    studio = commands.add_parser("studio", help="Ouvrir le studio web local")
+    studio.add_argument("--port", type=int, default=8765)
     idea = commands.add_parser("idea", help="Générer une idée, deux plans et une narration")
     idea.add_argument("direction", nargs="?", default="Un geste simple du quotidien")
     idea.add_argument("--trend", default="")
@@ -140,7 +142,11 @@ def main():
             sub.add_argument("--actor", required=True)
     try:
         args = parser.parse_args()
-        if args.action == "start":
+        if args.action == "studio":
+            import uvicorn
+            from .studio import create_app
+            uvicorn.run(create_app(args.root), host="127.0.0.1", port=args.port)
+        elif args.action == "start":
             guided(args)
         else:
             run(args)
