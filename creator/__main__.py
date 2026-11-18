@@ -1,0 +1,95 @@
+"""Local CLI. Human decisions are explicit, and each step can resume later."""
+import argparse
+import fcntl
+import json
+from pathlib import Path
+import subprocess
+import sys
+from uuid import uuid4
+
+from .proposal import generate
+from .render import probe, render
+from .speech import synthesize
+from .workflow import CreatorWorkflow, _hash_file
+
+
+def verify(record):
+    if _hash_file(record["path"]) != record["sha256"]:
+        raise ValueError(f"Fichier modifié depuis la validation : {record['path']}")
+
+
+def run(args):
+    flow = CreatorWorkflow(args.root)
+    if args.action == "idea":
+        proposal = generate(args.direction, args.trend)
+        result = flow.create_proposal(**proposal, trend_notes=args.trend)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    state = flow.read(args.id)
+    folder = flow.root / args.id
+    folder.mkdir(exist_ok=True)
+    with (folder / "project.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = flow.read(args.id)
+        if args.action == "show":
+            print(json.dumps(state, indent=2, ensure_ascii=False))
+            return
+        if args.action == "footage":
+            for clip in args.clips:
+                if not any(s["codec_type"] == "video" for s in probe(Path(clip).resolve())["streams"]):
+                    raise ValueError(f"Aucune piste vidéo dans {clip}")
+            flow.approve_footage(args.id, args.clips, actor=args.actor)
+        elif args.action == "voice":
+            flow._advance(args.id, "footage_approved", "voice_generated")
+            for clip in state["footage"]["files"]:
+                verify(clip)
+            output = folder / f"voix-{uuid4().hex[:8]}.wav"
+            synthesize(state["proposal"]["script"], output, args.reference)
+            flow.record_voice(args.id, output)
+            print(output)
+        elif args.action == "listen-ok":
+            flow.approve_voice(args.id, actor=args.actor)
+        elif args.action == "render":
+            flow._advance(args.id, "voice_approved", "assembled")
+            clips = state["footage"]["files"]
+            for item in [*clips, state["voice"]]:
+                verify(item)
+            output = folder / "montage.mp4"
+            render([item["path"] for item in clips], state["voice"]["path"], output)
+            flow.record_assembly(args.id, output)
+            print(output)
+        elif args.action == "export-ok":
+            flow.approve_export(args.id, actor=args.actor)
+        elif args.action == "retake":
+            if state["stage"] == "export_approved":
+                raise ValueError("Export finalisé. Créez un nouveau projet pour cette version.")
+            state.update(stage="proposed", footage=None, voice=None, assembly=None, final_review=None)
+            flow._event(state, "retake_requested", args.actor, {})
+            flow._save(state)
+        print(flow.read(args.id)["stage"])
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Créer un Reel narré en français.")
+    parser.add_argument("--root", default="output/projects")
+    commands = parser.add_subparsers(dest="action", required=True)
+    idea = commands.add_parser("idea", help="Générer une idée, deux plans et une narration")
+    idea.add_argument("direction", nargs="?", default="Un geste simple du quotidien")
+    idea.add_argument("--trend", default="")
+    for name in ("show", "footage", "voice", "listen-ok", "render", "export-ok", "retake"):
+        sub = commands.add_parser(name)
+        sub.add_argument("id")
+        if name == "footage":
+            sub.add_argument("clips", nargs="+")
+        if name == "voice":
+            sub.add_argument("--reference", help="Voix de référence personnelle facultative")
+        if name in {"footage", "listen-ok", "export-ok", "retake"}:
+            sub.add_argument("--actor", required=True)
+    try:
+        run(parser.parse_args())
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        sys.exit(str(error))
+
+
+if __name__ == "__main__":
+    main()
